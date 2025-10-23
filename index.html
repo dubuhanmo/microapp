@@ -7,80 +7,76 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>마이크로비트 블루투스 제어</title>
+  <title>micro:bit Web Bluetooth Sample</title>
   <style>
     button { margin: 5px; padding: 10px 20px; font-size: 16px; }
   </style>
 </head>
 <body>
-  <h2>마이크로비트 블루투스 제어</h2>
-  <button onclick="connect()">🔗 연결</button>
+  <h2>micro:bit Web Bluetooth Sample</h2>
+  <button onclick="connectMicrobit()">🔗 연결</button>
   <button onclick="sendCommand('up')">⬆️ 전진</button>
   <button onclick="sendCommand('down')">⬇️ 후진</button>
   <button onclick="sendCommand('left')">⬅️ 좌회전</button>
   <button onclick="sendCommand('right')">➡️ 우회전</button>
   <button onclick="sendCommand('stop')">⏹ 정지</button>
-
   <br><br>
   <label for="servo">서보 각도 (0~180):</label>
   <input type="number" id="servo" min="0" max="180" value="90">
   <button onclick="sendServo()">⚙️ 서보 제어</button>
 
   <script>
-    let bluetoothDevice;
-    let txCharacteristic;
+    let device;
+    let txChar;
 
-    async function connect() {
+    async function connectMicrobit() {
       try {
-        bluetoothDevice = await navigator.bluetooth.requestDevice({
-  acceptAllDevices: true,
-  optionalServices: [
-    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // UART Service
-    '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // ✅ TX Characteristic
-    '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  // ✅ RX Characteristic
-  ]
-});
+        // 모든 장치 허용, UART 서비스 + TX/RX 특성 명시
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [
+            '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // UART Service
+            '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // TX
+            '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  // RX
+          ]
+        });
 
-        
-        const server = await bluetoothDevice.gatt.connect();
-        const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+        const server = await device.gatt.connect();
+        const uartService = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
 
-        txCharacteristic = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
-        const rxCharacteristic = await service.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
+        txChar = await uartService.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
+        const rxChar = await uartService.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
 
-        await rxCharacteristic.startNotifications();
-        rxCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+        await rxChar.startNotifications();
+        rxChar.addEventListener('characteristicvaluechanged', e => {
+          const value = new TextDecoder().decode(e.target.value);
+          console.log('Received:', value);
+        });
 
-        alert('UART 연결 완료!');
-        sendCommand('test'); // 연결 확인용 명령
-      } catch (error) {
-        alert('연결 실패: ' + error);
-        console.error('연결 오류:', error);
+        alert('✅ micro:bit 연결 성공!');
+        sendCommand('test'); // 테스트 명령
+      } catch (err) {
+        alert('연결 실패: ' + err);
+        console.error(err);
       }
     }
 
     function sendCommand(cmd) {
-      if (!txCharacteristic) return alert('먼저 연결하세요!');
+      if (!txChar) return alert('먼저 연결하세요!');
       const data = new TextEncoder().encode(cmd + '\n');
-      try {
-        txCharacteristic.writeValue(data);
-        console.log('명령 전송됨:', cmd);
-      } catch (error) {
-        console.error('쓰기 오류:', error);
-        alert('명령 전송 실패: ' + error);
-      }
+      txChar.writeValue(data).then(() => {
+        console.log('Sent:', cmd);
+      }).catch(err => {
+        console.error('Write error:', err);
+      });
     }
 
     function sendServo() {
       const angle = document.getElementById('servo').value;
       sendCommand('x' + angle);
     }
-
-    function handleNotifications(event) {
-      const value = new TextDecoder().decode(event.target.value);
-      console.log('수신됨:', value);
-    }
   </script>
 </body>
 </html>
+
 

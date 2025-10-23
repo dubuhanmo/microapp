@@ -2,14 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>micro:bit WebUSB 제어</title>
+  <title>micro:bit Stable Web Bluetooth Control</title>
   <style>
+    body { font-family: Arial, sans-serif; }
     button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    #status { margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>micro:bit WebUSB 제어</h2>
-  <button onclick="connect()">🔗 연결</button>
+  <h2>micro:bit Web Bluetooth Control</h2>
+  <button onclick="connectMicrobit()">🔗 연결</button>
   <button onclick="sendCommand('up')">⬆️ 전진</button>
   <button onclick="sendCommand('down')">⬇️ 후진</button>
   <button onclick="sendCommand('left')">⬅️ 좌회전</button>
@@ -19,43 +21,17 @@
   <label for="servo">서보 각도 (0~180):</label>
   <input type="number" id="servo" min="0" max="180" value="90">
   <button onclick="sendServo()">⚙️ 서보 제어</button>
+  <div id="status">Status: Not connected ❌</div>
 
   <script>
     let device;
-    let writer;
+    let txChar;
+    let rxChar;
 
-    async function connect() {
+    async function connectMicrobit() {
+      const statusDiv = document.getElementById('status');
       try {
-        device = await navigator.usb.requestDevice({
-          filters: [{ vendorId: 0x0D28, productId: 0x0204 }]
-        });
-        await device.open();
-        await device.selectConfiguration(1);
-        await device.claimInterface(0);
-        writer = device.transferOut(1);
-        alert('micro:bit 연결 성공!');
-      } catch (error) {
-        alert('연결 실패: ' + error);
-        console.error('연결 오류:', error);
-      }
-    }
-
-    async function sendCommand(cmd) {
-      if (!writer) return alert('먼저 연결하세요!');
-      const data = new TextEncoder().encode(cmd + '\n');
-      try {
-        await writer.write(data);
-        console.log('명령 전송됨:', cmd);
-      } catch (error) {
-        console.error('쓰기 오류:', error);
-        alert('명령 전송 실패: ' + error);
-      }
-    }
-
-    async function sendServo() {
-      const angle = document.getElementById('servo').value;
-      sendCommand('x' + angle);
-    }
-  </script>
-</body>
-</html>
+        // BLE 장치 선택
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalService

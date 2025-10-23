@@ -1,19 +1,15 @@
-<!DOCTYPE html - 20251023 -- 010 >
-<! GPT에게 다시 물어봄 -->
-<! 테스트문자발송 기능 추가 >
-<! UART TX 특성 연결 완료 - OK >
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>micro:bit Web Bluetooth Sample</title>
+  <title>micro:bit Web Bluetooth Stable Control</title>
   <style>
     button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    #status { margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>micro:bit Web Bluetooth Sample</h2>
+  <h2>micro:bit Web Bluetooth Control</h2>
   <button onclick="connectMicrobit()">🔗 연결</button>
   <button onclick="sendCommand('up')">⬆️ 전진</button>
   <button onclick="sendCommand('down')">⬇️ 후진</button>
@@ -25,13 +21,15 @@
   <input type="number" id="servo" min="0" max="180" value="90">
   <button onclick="sendServo()">⚙️ 서보 제어</button>
 
+  <div id="status">Status: Not connected</div>
+
   <script>
     let device;
     let txChar;
 
     async function connectMicrobit() {
+      const statusDiv = document.getElementById('status');
       try {
-        // 모든 장치 허용, UART 서비스 + TX/RX 특성 명시
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
           optionalServices: [
@@ -41,9 +39,11 @@
           ]
         });
 
+        // 연결 시도
         const server = await device.gatt.connect();
         const uartService = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
 
+        // TX/RX 특성 가져오기
         txChar = await uartService.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
         const rxChar = await uartService.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
 
@@ -53,11 +53,20 @@
           console.log('Received:', value);
         });
 
+        statusDiv.textContent = 'Status: Connected ✅';
         alert('✅ micro:bit 연결 성공!');
-        sendCommand('test'); // 테스트 명령
+        sendCommand('test'); // 연결 확인용 명령
+
+        // 연결 끊김 이벤트 처리
+        device.addEventListener('gattserverdisconnected', () => {
+          statusDiv.textContent = 'Status: Disconnected ⚠️';
+          console.log('micro:bit disconnected');
+        });
+
       } catch (err) {
+        console.error('BLE 연결 에러:', err);
         alert('연결 실패: ' + err);
-        console.error(err);
+        statusDiv.textContent = 'Status: Not connected ❌';
       }
     }
 
@@ -68,6 +77,7 @@
         console.log('Sent:', cmd);
       }).catch(err => {
         console.error('Write error:', err);
+        alert('명령 전송 실패: ' + err);
       });
     }
 
@@ -78,5 +88,3 @@
   </script>
 </body>
 </html>
-
-

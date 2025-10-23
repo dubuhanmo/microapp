@@ -2,22 +2,39 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>micro:bit BLE Test</title>
+<title>micro:bit BLE Full Control</title>
 <style>
-  body { font-family: Arial, sans-serif; }
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
   button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+  input[type=number] { width: 60px; font-size: 16px; }
   #status { margin-top: 10px; font-weight: bold; }
+  #sensor { margin-top: 10px; }
 </style>
 </head>
 <body>
-<h2>micro:bit BLE Test</h2>
+<h2>micro:bit BLE Full Control</h2>
+
 <button onclick="connectMicrobit()">🔗 Connect</button>
+<div id="status">Status: Not connected ❌</div>
+
+<h3>Movement</h3>
 <button onclick="sendCommand('up')">⬆️ Up</button>
 <button onclick="sendCommand('down')">⬇️ Down</button>
 <button onclick="sendCommand('left')">⬅️ Left</button>
 <button onclick="sendCommand('right')">➡️ Right</button>
 <button onclick="sendCommand('stop')">⏹ Stop</button>
-<div id="status">Status: Not connected ❌</div>
+
+<h3>Servo</h3>
+<label for="servo">Angle:</label>
+<input type="number" id="servo" min="0" max="180" value="90">
+<button onclick="sendServo()">⚙️ Set Servo</button>
+
+<h3>LED</h3>
+<button onclick="sendCommand('ledOn')">💡 On</button>
+<button onclick="sendCommand('ledOff')">💡 Off</button>
+
+<h3>Sensor Data</h3>
+<div id="sensor">Waiting for data...</div>
 
 <script>
 let device = null;
@@ -26,15 +43,14 @@ let txChar = null;
 async function connectMicrobit() {
   const statusDiv = document.getElementById('status');
   try {
-    // acceptAllDevices: true → 이름 상관없이 검색 가능
     device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] // UART service
+      optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
     });
 
     device.addEventListener('gattserverdisconnected', async () => {
       statusDiv.textContent = 'Status: Disconnected ⚠️';
-      console.log('micro:bit disconnected. Try reconnecting...');
+      console.log('micro:bit disconnected. Reconnecting...');
       await reconnectGatt();
     });
 
@@ -50,53 +66,4 @@ async function connectGatt() {
   const statusDiv = document.getElementById('status');
   try {
     const server = await device.gatt.connect();
-    const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
-    txChar = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
-    const rxChar = await service.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
-
-    await rxChar.startNotifications();
-    rxChar.addEventListener('characteristicvaluechanged', e => {
-      const value = new TextDecoder().decode(e.target.value);
-      console.log('Received:', value);
-    });
-
-    statusDiv.textContent = 'Status: Connected ✅';
-    alert('✅ micro:bit BLE Connected!');
-    sendCommand('test'); // 연결 확인용
-  } catch (err) {
-    console.error('GATT 연결 실패:', err);
-    statusDiv.textContent = 'Status: Not connected ❌';
-    throw err;
-  }
-}
-
-async function reconnectGatt() {
-  let retries = 0;
-  while (retries < 5) {
-    try {
-      await connectGatt();
-      console.log('Reconnected!');
-      return;
-    } catch (err) {
-      retries++;
-      console.log('Reconnect failed, retrying in 1s...');
-      await new Promise(res => setTimeout(res, 1000));
-    }
-  }
-  document.getElementById('status').textContent = 'Status: Failed to reconnect ❌';
-  alert('micro:bit reconnect failed');
-}
-
-async function sendCommand(cmd) {
-  if (!txChar) return alert('Please connect micro:bit first!');
-  try {
-    await txChar.writeValue(new TextEncoder().encode(cmd + '\n'));
-    console.log('Sent:', cmd);
-  } catch (err) {
-    console.error('Send failed:', err);
-    alert('Command send failed: ' + err);
-  }
-}
-</script>
-</body>
-</html>
+    const service = await server.g

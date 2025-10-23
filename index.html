@@ -2,15 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>micro:bit Stable Web Bluetooth Control</title>
+  <title>micro:bit Web Bluetooth Sample</title>
   <style>
-    body { font-family: Arial, sans-serif; }
     button { margin: 5px; padding: 10px 20px; font-size: 16px; }
-    #status { margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>micro:bit Web Bluetooth Control</h2>
+  <h2>micro:bit Web Bluetooth Sample</h2>
   <button onclick="connectMicrobit()">🔗 연결</button>
   <button onclick="sendCommand('up')">⬆️ 전진</button>
   <button onclick="sendCommand('down')">⬇️ 후진</button>
@@ -21,17 +19,57 @@
   <label for="servo">서보 각도 (0~180):</label>
   <input type="number" id="servo" min="0" max="180" value="90">
   <button onclick="sendServo()">⚙️ 서보 제어</button>
-  <div id="status">Status: Not connected ❌</div>
 
   <script>
     let device;
     let txChar;
-    let rxChar;
 
     async function connectMicrobit() {
-      const statusDiv = document.getElementById('status');
       try {
-        // BLE 장치 선택
+        // 모든 장치 허용, UART 서비스 + TX/RX 특성 명시
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalService
+          optionalServices: [
+            '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // UART Service
+            '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // TX
+            '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  // RX
+          ]
+        });
+
+        const server = await device.gatt.connect();
+        const uartService = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+
+        txChar = await uartService.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
+        const rxChar = await uartService.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
+
+        await rxChar.startNotifications();
+        rxChar.addEventListener('characteristicvaluechanged', e => {
+          const value = new TextDecoder().decode(e.target.value);
+          console.log('Received:', value);
+        });
+
+        alert('✅ micro:bit 연결 성공!');
+        sendCommand('test'); // 테스트 명령
+      } catch (err) {
+        alert('연결 실패: ' + err);
+        console.error(err);
+      }
+    }
+
+    function sendCommand(cmd) {
+      if (!txChar) return alert('먼저 연결하세요!');
+      const data = new TextEncoder().encode(cmd + '\n');
+      txChar.writeValue(data).then(() => {
+        console.log('Sent:', cmd);
+      }).catch(err => {
+        console.error('Write error:', err);
+      });
+    }
+
+    function sendServo() {
+      const angle = document.getElementById('servo').value;
+      sendCommand('x' + angle);
+    }
+  </script>
+</body>
+</html>

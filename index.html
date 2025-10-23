@@ -2,15 +2,14 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>micro:bit Stable Web Bluetooth Control</title>
+  <title>micro:bit WebUSB 제어</title>
   <style>
     button { margin: 5px; padding: 10px 20px; font-size: 16px; }
-    #status { margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>micro:bit Web Bluetooth Control</h2>
-  <button onclick="connectMicrobit()">🔗 연결</button>
+  <h2>micro:bit WebUSB 제어</h2>
+  <button onclick="connect()">🔗 연결</button>
   <button onclick="sendCommand('up')">⬆️ 전진</button>
   <button onclick="sendCommand('down')">⬇️ 후진</button>
   <button onclick="sendCommand('left')">⬅️ 좌회전</button>
@@ -21,96 +20,39 @@
   <input type="number" id="servo" min="0" max="180" value="90">
   <button onclick="sendServo()">⚙️ 서보 제어</button>
 
-  <div id="status">Status: Not connected ❌</div>
-
   <script>
     let device;
-    let txChar;
-    let rxChar;
+    let writer;
 
-    async function connectMicrobit() {
-      const statusDiv = document.getElementById('status');
+    async function connect() {
       try {
-        device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [
-            '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // UART Service
-            '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // TX
-            '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  // RX
-          ]
+        device = await navigator.usb.requestDevice({
+          filters: [{ vendorId: 0x0D28, productId: 0x0204 }]
         });
-
-        await connectGattServer(); // 연결 시도
-
-        // 연결 끊김 이벤트 처리
-        device.addEventListener('gattserverdisconnected', async () => {
-          statusDiv.textContent = 'Status: Disconnected ⚠️';
-          console.log('micro:bit disconnected. Reconnecting...');
-          await reconnectGattServer();
-        });
-
-      } catch (err) {
-        console.error('BLE 연결 에러:', err);
-        alert('연결 실패: ' + err);
-        statusDiv.textContent = 'Status: Not connected ❌';
+        await device.open();
+        await device.selectConfiguration(1);
+        await device.claimInterface(0);
+        writer = device.transferOut(1);
+        alert('micro:bit 연결 성공!');
+      } catch (error) {
+        alert('연결 실패: ' + error);
+        console.error('연결 오류:', error);
       }
     }
 
-    async function connectGattServer() {
-      const statusDiv = document.getElementById('status');
-      try {
-        const server = await device.gatt.connect();
-        const uartService = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
-
-        txChar = await uartService.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
-        rxChar = await uartService.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
-
-        await rxChar.startNotifications();
-        rxChar.addEventListener('characteristicvaluechanged', e => {
-          const value = new TextDecoder().decode(e.target.value);
-          console.log('Received:', value);
-        });
-
-        statusDiv.textContent = 'Status: Connected ✅';
-        alert('✅ micro:bit 연결 성공!');
-        sendCommand('test'); // 연결 확인용 명령
-      } catch (err) {
-        console.error('GATT Server 연결 실패:', err);
-        statusDiv.textContent = 'Status: Not connected ❌';
-        throw err;
-      }
-    }
-
-    async function reconnectGattServer() {
-      const statusDiv = document.getElementById('status');
-      let retryCount = 0;
-      while (retryCount < 5) {
-        try {
-          await connectGattServer();
-          console.log('Reconnected!');
-          return;
-        } catch (err) {
-          console.log('재연결 시도 실패. 1초 후 다시 시도...');
-          await new Promise(res => setTimeout(res, 1000));
-          retryCount++;
-        }
-      }
-      statusDiv.textContent = 'Status: Failed to reconnect ❌';
-      alert('micro:bit 재연결 실패');
-    }
-
-    function sendCommand(cmd) {
-      if (!txChar) return alert('먼저 연결하세요!');
+    async function sendCommand(cmd) {
+      if (!writer) return alert('먼저 연결하세요!');
       const data = new TextEncoder().encode(cmd + '\n');
-      txChar.writeValue(data).then(() => {
-        console.log('Sent:', cmd);
-      }).catch(err => {
-        console.error('Write error:', err);
-        alert('명령 전송 실패: ' + err);
-      });
+      try {
+        await writer.write(data);
+        console.log('명령 전송됨:', cmd);
+      } catch (error) {
+        console.error('쓰기 오류:', error);
+        alert('명령 전송 실패: ' + error);
+      }
     }
 
-    function sendServo() {
+    async function sendServo() {
       const angle = document.getElementById('servo').value;
       sendCommand('x' + angle);
     }
